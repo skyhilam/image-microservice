@@ -2,56 +2,113 @@
 
 namespace App\Http\Controllers;
 
+use App\Video\S3VideoStream;
 use Illuminate\Http\Request;
-use Intervention\Image\ImageManagerStatic as Image;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImageController extends Controller
 {
-    public function index() 
-    {
-        return view('index');        
-    }
+    protected $cache_time = 24 * 60;
 
-    public function show(Request $request, $folder, $filename) 
+    public function show(Request $request, $folder, $filename)
     {
+
+        $query = isset($_SERVER['QUERY_STRING'])? $_SERVER['QUERY_STRING']: '';
+        $key = "image:{$request->path()}:{$query}";
         try {
 
-            $query = isset($_SERVER['QUERY_STRING'])? $_SERVER['QUERY_STRING']: '';
-            $key = "image:{$request->path()}:{$query}";
+            $file = app('rediscache')->remember($key.'.file', $this->cache_time, function() use ($folder, $filename) {
+                return file_get_contents(app('cloudfile')->folder($folder)->url($filename));
+            });
 
-            $image = app('rediscache')->remember($key, 24 * 60, function() use ($request, $folder, $filename) {
+            $mime = app('rediscache')->remember($key.'.mime', $this->cache_time, function() use ($file) {
+                return (new \finfo(FILEINFO_MIME_TYPE))->buffer($file);
+            });
+
+            $headers = [
+                "Content-type" => $mime,
+                'Cache-Control', 'public, max_age='. $this->cache_time * 60 * 7 * 1000
+            ];
+
+            if ($mime == 'video/mp4') {
+                $stream = new S3VideoStream(app('cloudfile')->folder($folder)->path($filename));
+
+                return new \Symfony\Component\HttpFoundation\StreamedResponse(function() use ($stream) {
+                    return $stream->start();
+                }, 200, $headers);
+
+            }
+
+            $image = app('rediscache')->remember($key, $this->cache_time, function() use ($request, $file) {
                 return app('image')
-                    ->load(file_get_contents(app('cloudfile')->folder($folder)->url($filename)))
+                    ->load($file)
                     ->withFilters($request->all())
                     ->stream();
             });
 
+            return response($image, 200, $headers);
+
 
         }  catch (\Exception $e) {
             \Log::alert($e);
-            abort(404);
+            return $this->pageNotFound();
         }
-
-
-        return response($image)
-            ->header('Content-Type', 'image/png');
     }
 
-    public function store(Request $request) 
+
+    public function store(Request $request)
     {
         $this->validate($request, [
-            'file' => 'required|image|max:2000',
+            'file' => 'required|mimes:mp4,jpg,jpeg,png,gif|max:100000',
+            'folder' => 'required|max:255',
         ]);
 
-        return app('cloudfile')->folder($request->input('folder', ''))->put($request->file);
+        return app('cloudfile')->folder($request->folder)->put($request->file);
     }
 
-    public function destroy(Request $request) 
+    public function copy(Request $request)
     {
         $this->validate($request, [
-            'filename' => 'required',
+            'filename' => 'required|max:255',
+            'folder' => 'required|max:255',
+        ]);
+        $fs = app('cloudfile')->folder($request->folder);
+
+        if (!$fs->exists($filename = $request->filename)) return $this->pageNotFound();
+
+        return $fs->copy($filename);
+    }
+
+    public function exists(Request $request)
+    {
+        $this->validate($request, [
+            'filename' => 'required|max:255',
+            'folder' => 'required|max:255',
         ]);
 
-        return app('cloudfile')->folder($request->input('folder', ''))->delete($request->filename);
+
+        $key = 'exists.'.$request->folder. '.'. $request->filename;
+
+        return app('rediscache')->remember($key, $this->cache_time, function() use ($request) {
+            return app('cloudfile')->folder($request->folder)->exists($request->filename)? 'true': 'false';
+        });
+
+    }
+
+    public function destroy(Request $request)
+    {
+        $this->validate($request, [
+            'filename' => 'required|max:255',
+            'folder' => 'required|max:255',
+        ]);
+
+        return app('cloudfile')->folder($request->folder)->delete($request->filename);
+    }
+
+    protected function pageNotFound()
+    {
+        return response()->json([
+            'message' => 'page not found'
+        ], 404);
     }
 }

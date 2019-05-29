@@ -38,6 +38,7 @@ class Manipulator
         return $this->image->stream();
     }
 
+
     protected function applyFilters(array $filters)
     {
         $availableFilters = $this->config->get('image.filters');

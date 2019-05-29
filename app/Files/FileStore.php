@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Files;
 
@@ -16,29 +16,29 @@ class FileStore
 		$this->filesystemManager = $filesystemManager;
 	}
 
-	public function get($filename) 
+	public function get($filename)
 	{
 		return $this->filesystemManager->get($this->path($filename));
 	}
 
-	public function url($filename) 
+	public function url($filename)
 	{
 		return $this->filesystemManager->url($this->path($filename));
 	}
 
-	public function folder($folder) 
+	public function folder($folder)
 	{
 		$this->folder = $folder;
 
 		return $this;
 	}
 
-	public function exists($filename) 
+	public function exists($filename)
 	{
 		return $this->filesystemManager->exists($this->path($filename));
 	}
 
-	public function put($file) 
+	public function put($file)
 	{
 		$filename = Uuid::uuid4()->toString();
 
@@ -50,29 +50,36 @@ class FileStore
 		return $filename;
 	}
 
-	public function delete($filename) 
+	public function copy($filename)
+	{
+		$this->filesystemManager->copy(
+			$this->path($filename),
+			$this->path($new_filename = Uuid::uuid4()->toString())
+		);
+
+		return $new_filename;
+	}
+
+	public function delete($filename)
 	{
 		if ($this->exists($filename)) {
 			$this->filesystemManager->delete($this->path($filename));
-		};	
+		};
 	}
 
-	protected function path($filename) 
+	public function path($filename)
 	{
 		return $this->folder. '/'. $filename;
 	}
 
-/*
+    public function getDriver()
+    {
+        return $this->filesystemManager->getDriver();
+    }
 
-	
+    public function getAdapter()
+    {
+        return $this->filesystemManager->getAdapter();
+    }
 
-	
-
-	protected function generateFilename() 
-	{
-		return str_random(64);
-	}
-
-*/
-	
 }

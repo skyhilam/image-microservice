@@ -15,33 +15,28 @@ class ImageController extends Controller
 
         $query = isset($_SERVER['QUERY_STRING'])? $_SERVER['QUERY_STRING']: '';
         $key = "image:{$request->path()}:{$query}";
+
+        $cloudfile = app('cloudfile')->folder($folder)->filename($filename);
+
         try {
 
-            $file = app('rediscache')->remember($key.'.file', $this->cache_time, function() use ($folder, $filename) {
-                return file_get_contents(app('cloudfile')->folder($folder)->url($filename));
-            });
-
-            $mime = app('rediscache')->remember($key.'.mime', $this->cache_time, function() use ($file) {
-                return (new \finfo(FILEINFO_MIME_TYPE))->buffer($file);
-            });
-
             $headers = [
-                "Content-type" => $mime,
+                "Content-type" => $mime = $cloudfile->mimetype(),
                 'Cache-Control', 'public, max_age='. $this->cache_time * 60 * 7 * 1000
             ];
 
             if ($mime == 'video/mp4') {
-                $stream = new S3VideoStream(app('cloudfile')->folder($folder)->path($filename));
+                $stream = new S3VideoStream($cloudfile->path());
 
                 return new \Symfony\Component\HttpFoundation\StreamedResponse(function() use ($stream) {
                     return $stream->start();
                 }, 200, $headers);
-
             }
 
-            $image = app('rediscache')->remember($key, $this->cache_time, function() use ($request, $file) {
+
+            $image = app('rediscache')->remember($key, $this->cache_time, function() use ($request, $cloudfile) {
                 return app('image')
-                    ->load($file)
+                    ->load($cloudfile->get())
                     ->withFilters($request->all())
                     ->stream();
             });

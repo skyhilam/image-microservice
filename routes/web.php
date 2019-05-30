@@ -11,12 +11,16 @@
 |
 */
 
-// $router->get('/', 'ImageController@index');
+$router->get('/', function() {
+    return 'v1.0.0';
+});
 
-$router->get('/{folder}/{filename}', 'ImageController@show');
+
 $router->post('/copy', 'ImageController@copy');
 $router->post('/file', 'ImageController@store');
 $router->post('/exists', 'ImageController@exists');
 $router->delete('/file', 'ImageController@destroy');
+
+$router->get('/{folder}/{filename}', 'ImageController@show');
 
 

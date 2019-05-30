@@ -11,17 +11,19 @@ class FileStore
 
 	protected $folder;
 
+    protected $filename = null;
+
 	public function __construct(FilesystemManager $filesystemManager)
 	{
 		$this->filesystemManager = $filesystemManager;
 	}
 
-	public function get($filename)
+	public function get($filename = null)
 	{
 		return $this->filesystemManager->get($this->path($filename));
 	}
 
-	public function url($filename)
+	public function url($filename = null)
 	{
 		return $this->filesystemManager->url($this->path($filename));
 	}
@@ -33,7 +35,14 @@ class FileStore
 		return $this;
 	}
 
-	public function exists($filename)
+    public function filename($filename)
+    {
+        $this->filename = $filename;
+
+        return $this;
+    }
+
+	public function exists($filename = null)
 	{
 		return $this->filesystemManager->exists($this->path($filename));
 	}
@@ -50,7 +59,7 @@ class FileStore
 		return $filename;
 	}
 
-	public function copy($filename)
+	public function copy($filename = null)
 	{
 		$this->filesystemManager->copy(
 			$this->path($filename),
@@ -60,16 +69,16 @@ class FileStore
 		return $new_filename;
 	}
 
-	public function delete($filename)
+	public function delete($filename = null)
 	{
 		if ($this->exists($filename)) {
 			$this->filesystemManager->delete($this->path($filename));
 		};
 	}
 
-	public function path($filename)
+	public function path($filename = null)
 	{
-		return $this->folder. '/'. $filename;
+		return $this->folder. '/'. ($filename ?? $this->filename);
 	}
 
     public function getDriver()
@@ -80,6 +89,11 @@ class FileStore
     public function getAdapter()
     {
         return $this->filesystemManager->getAdapter();
+    }
+
+    public function mimetype($filename = null)
+    {
+        return $this->filesystemManager->getMimetype($this->path($filename));
     }
 
 }

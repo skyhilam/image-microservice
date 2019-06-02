@@ -20,6 +20,8 @@ class ImageController extends Controller
 
         try {
 
+            if (!$cloudfile->exists()) return $this->pageNotFound();
+
             $headers = [
                 "Content-type" => $mime = $cloudfile->mimetype(),
                 'Cache-Control', 'public, max_age='. $this->cache_time * 60 * 7 * 1000
